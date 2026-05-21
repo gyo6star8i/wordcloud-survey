@@ -601,16 +601,24 @@ function renderCloud() {
   document.getElementById('empty-hint').style.display = 'none';
 
   const maxCount = Math.max(...entries.map(e => e.count));
-  const minSize = Math.max(18, W * 0.022);
-  const maxSize = Math.min(W * 0.13, 92);
+  const minCount = Math.min(...entries.map(e => e.count));
+  const minSize = Math.max(13, W * 0.014);       // 더 작은 최솟값
+  const maxSize = Math.min(W * 0.20, 130);       // 더 큰 최댓값
 
   const words = entries
     .sort((a, b) => b.count - a.count)
-    .map(e => ({
-      text: e.display,
-      size: minSize + Math.pow(e.count / maxCount, 0.55) * (maxSize - minSize),
-      color: COLORS[Math.abs(hashStr(e.display.toLowerCase())) % COLORS.length],
-    }));
+    .map(e => {
+      // 지수 1.8: 빈도 차이를 크게 증폭 (0.55였던 것을 역방향으로 변경)
+      const ratio = maxCount === minCount
+        ? 1
+        : (e.count - minCount) / (maxCount - minCount);
+      const size = minSize + Math.pow(ratio, 1.8) * (maxSize - minSize);
+      return {
+        text: e.display,
+        size: Math.round(size),
+        color: COLORS[Math.abs(hashStr(e.display.toLowerCase())) % COLORS.length],
+      };
+    });
 
   d3.layout.cloud()
     .size([W, H])
