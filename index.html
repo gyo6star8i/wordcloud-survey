@@ -41,6 +41,7 @@
       font-weight: 700; color: #1a1a1a;
       line-height: 1.35;
     }
+    #present-q.placeholder { color: #bbb; font-weight: 600; }
     #edit-q-btn {
       flex-shrink: 0;
       background: none; border: none;
@@ -451,7 +452,8 @@ const CONFIG = {
 const params   = new URLSearchParams(location.search);
 const MODE     = params.get('mode') || 'present';
 const SESSION  = params.get('session') || 'default';
-const QUESTION = decodeURIComponent(params.get('q') || '') || '내가 사용해 본 AI 도구는?';
+const PLACEHOLDER = '질문을 입력해 주세요.';
+const QUESTION = params.get('q') || '';
 
 const COLORS = [
   '#1565C0','#E53935','#7B1FA2','#00897B',
@@ -486,7 +488,13 @@ const wordMap = {}; // key: lowercase → { display, count }
 let renderTimer = null;
 
 async function initPresentMode() {
-  document.getElementById('present-q').textContent = QUESTION;
+  const qEl = document.getElementById('present-q');
+  if (QUESTION) {
+    qEl.textContent = QUESTION;
+  } else {
+    qEl.textContent = PLACEHOLDER;
+    qEl.classList.add('placeholder');
+  }
 
   const voteUrl = buildVoteUrl();
   document.getElementById('qr-url').textContent = voteUrl;
@@ -555,8 +563,12 @@ function buildVoteUrl() {
   const url = new URL(location.href);
   url.searchParams.set('mode', 'vote');
   url.searchParams.set('session', SESSION);
-  if (params.get('q')) url.searchParams.set('q', params.get('q'));
-  else url.searchParams.delete('q');
+  // savedQuestion 사용 (params는 최초 URL 기준이라 수정 반영 안 됨)
+  if (savedQuestion) {
+    url.searchParams.set('q', savedQuestion);
+  } else {
+    url.searchParams.delete('q');
+  }
   return url.toString();
 }
 
@@ -760,13 +772,14 @@ async function saveAsExcel() {
 // ============================================================
 // 질문 수정
 // ============================================================
-let savedQuestion = QUESTION;
+let savedQuestion = QUESTION; // 빈 문자열이면 플레이스홀더로 처리
 
 function startEdit() {
   const q   = document.getElementById('present-q');
   const inp = document.getElementById('present-q-input');
   const btn = document.getElementById('edit-q-btn');
-  inp.value = q.textContent;
+  // 플레이스홀더 상태면 빈칸으로 시작
+  inp.value = savedQuestion;
   q.style.display   = 'none';
   inp.style.display = 'block';
   btn.textContent   = '✅';
@@ -779,21 +792,31 @@ function saveQuestion() {
   const q   = document.getElementById('present-q');
   const inp = document.getElementById('present-q-input');
   const btn = document.getElementById('edit-q-btn');
-  const newQ = inp.value.trim() || savedQuestion;
+  const newQ = inp.value.trim();
 
-  savedQuestion = newQ;
-  q.textContent     = newQ;
+  if (newQ) {
+    savedQuestion = newQ;
+    q.textContent = newQ;
+    q.classList.remove('placeholder');
+  } else {
+    // 빈칸 저장 시 플레이스홀더 유지
+    q.textContent = PLACEHOLDER;
+    q.classList.add('placeholder');
+    savedQuestion = '';
+  }
+
   q.style.display   = '';
   inp.style.display = 'none';
   btn.textContent   = '✏️';
   btn.onclick       = startEdit;
 
-  // URL 업데이트 (새로고침 없이)
+  // URL 업데이트 (encodeURIComponent 제거 — searchParams.set이 자동 인코딩)
   const url = new URL(location.href);
-  url.searchParams.set('q', encodeURIComponent(newQ));
+  if (savedQuestion) url.searchParams.set('q', savedQuestion);
+  else url.searchParams.delete('q');
   history.pushState({}, '', url.toString());
 
-  // QR 코드 재생성
+  // QR 코드 재생성 (savedQuestion 기반으로 buildVoteUrl 호출)
   regenerateQR(buildVoteUrl());
 }
 
@@ -873,7 +896,7 @@ async function resetSession() {
 // VOTE MODE
 // ============================================================
 function initVoteMode() {
-  document.getElementById('vote-q').textContent = QUESTION;
+  document.getElementById('vote-q').textContent = QUESTION || PLACEHOLDER;
 
   ['f1','f2','f3'].forEach((id, i) => {
     const el = document.getElementById(id);
