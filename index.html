@@ -69,12 +69,59 @@
       padding: 14px 12px;
       display: flex; flex-direction: column;
       align-items: center; gap: 10px; width: 100%;
+      cursor: pointer; transition: background .2s, transform .15s;
+      position: relative;
+    }
+    #qr-panel:hover { background: #eef1ff; transform: scale(1.03); }
+    #qr-panel::after {
+      content: '🔍 클릭하여 확대';
+      font-size: 10px; color: #5c6bc0; font-weight: 700;
+      letter-spacing: 0.3px;
     }
     #qr-box { width: 148px; height: 148px; }
     #qr-box img, #qr-box canvas { border-radius: 6px; }
     #qr-url {
       font-size: 10px; color: #999;
       text-align: center; word-break: break-all; line-height: 1.5;
+    }
+
+    /* ===== QR 풀스크린 모달 ===== */
+    #qr-modal {
+      display: none;
+      position: fixed; inset: 0; z-index: 1000;
+      background: rgba(10, 10, 30, 0.92);
+      align-items: center; justify-content: center;
+      cursor: pointer;
+      animation: fadeIn .2s ease;
+    }
+    #qr-modal.open { display: flex; }
+    #qr-modal-card {
+      background: #fff; border-radius: 24px;
+      padding: 40px 48px 36px;
+      display: flex; flex-direction: column;
+      align-items: center; gap: 20px;
+      box-shadow: 0 24px 80px rgba(0,0,0,.5);
+      cursor: default;
+      animation: popIn .25s cubic-bezier(.34,1.56,.64,1);
+    }
+    #qr-modal-title {
+      font-size: 20px; font-weight: 700; color: #1a1a1a;
+      text-align: center;
+    }
+    #qr-big { width: 320px; height: 320px; }
+    #qr-big img, #qr-big canvas { border-radius: 8px; }
+    #qr-modal-url {
+      font-size: 13px; color: #888;
+      text-align: center; word-break: break-all;
+      max-width: 320px; line-height: 1.6;
+    }
+    #qr-modal-hint {
+      font-size: 12px; color: #bbb;
+    }
+    @keyframes fadeIn { from { opacity:0 } to { opacity:1 } }
+    @keyframes popIn {
+      from { transform: scale(.85); opacity:0 }
+      to   { transform: scale(1);   opacity:1 }
     }
     #badge {
       background: #eef1ff; color: #3949ab;
@@ -215,6 +262,16 @@
   데모 모드로 동작 중 (단어가 실제 저장·공유되지 않음)
 </div>
 
+<!-- QR 풀스크린 모달 -->
+<div id="qr-modal" onclick="closeQrModal(event)">
+  <div id="qr-modal-card" onclick="event.stopPropagation()">
+    <div id="qr-modal-title">📱 QR코드를 스캔하세요</div>
+    <div id="qr-big"></div>
+    <div id="qr-modal-url"></div>
+    <div id="qr-modal-hint">화면 아무 곳이나 클릭하면 닫힙니다</div>
+  </div>
+</div>
+
 <!-- PRESENT VIEW -->
 <div id="present-view" style="display:none">
   <div id="present-header">
@@ -230,7 +287,7 @@
       <svg id="cloud-svg"></svg>
     </div>
     <div id="sidebar">
-      <div id="qr-panel">
+      <div id="qr-panel" onclick="openQrModal()">
         <div id="qr-box"></div>
         <div id="qr-url"></div>
       </div>
@@ -487,6 +544,40 @@ function hashStr(s) {
   let h = 0;
   for (let i = 0; i < s.length; i++) h = (Math.imul(31, h) + s.charCodeAt(i)) | 0;
   return h;
+}
+
+// ============================================================
+// QR 풀스크린 모달
+// ============================================================
+let qrBigGenerated = false;
+
+function openQrModal() {
+  const modal = document.getElementById('qr-modal');
+  const urlText = document.getElementById('qr-url').textContent;
+  document.getElementById('qr-modal-url').textContent = urlText;
+
+  if (!qrBigGenerated) {
+    try {
+      new QRCode(document.getElementById('qr-big'), {
+        text: urlText, width: 320, height: 320,
+        colorDark: '#1a1a1a', colorLight: '#ffffff',
+        correctLevel: QRCode.CorrectLevel.M,
+      });
+      qrBigGenerated = true;
+    } catch(e) { console.error(e); }
+  }
+
+  modal.classList.add('open');
+  document.addEventListener('keydown', onModalKey);
+}
+
+function closeQrModal(e) {
+  document.getElementById('qr-modal').classList.remove('open');
+  document.removeEventListener('keydown', onModalKey);
+}
+
+function onModalKey(e) {
+  if (e.key === 'Escape') closeQrModal();
 }
 
 async function resetSession() {
