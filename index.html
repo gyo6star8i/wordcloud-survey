@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>워드클라우드 설문</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@700;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Noto+Sans+KR:wght@700;900&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <script src="https://d3js.org/d3.v7.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/d3-cloud@1.2.7/build/d3.layout.cloud.min.js"></script>
@@ -15,7 +15,7 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html, body { height: 100%; }
     body {
-      font-family: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, sans-serif;
+      font-family: 'Black Han Sans', 'Noto Sans KR', -apple-system, BlinkMacSystemFont, sans-serif;
       background: #fff;
       color: #1a1a1a;
     }
@@ -625,7 +625,7 @@ function renderCloud() {
     .words(words)
     .padding(5)
     .rotate(() => Math.random() > 0.85 ? 90 : 0)
-    .font("'Noto Sans KR', sans-serif")
+    .font("'Black Han Sans', sans-serif")
     .fontWeight(700)
     .fontSize(d => d.size)
     .on('end', placed => drawCloud(placed, W, H))
@@ -641,7 +641,7 @@ function drawCloud(words, W, H) {
     .selectAll('text')
     .data(words)
     .enter().append('text')
-      .style('font-family', "'Noto Sans KR', sans-serif")
+      .style('font-family', "'Black Han Sans', sans-serif")
       .style('font-size', d => d.size + 'px')
       .style('font-weight', '700')
       .style('fill', d => d.color)
