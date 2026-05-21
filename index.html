@@ -128,6 +128,15 @@
       padding: 7px 16px; border-radius: 20px;
       font-size: 13px; font-weight: 700;
     }
+    #refresh-indicator {
+      font-size: 11px; color: #aaa;
+      text-align: center; line-height: 1.6;
+    }
+    #refresh-indicator .spin {
+      display: inline-block;
+      animation: spinning 1s linear infinite;
+    }
+    @keyframes spinning { to { transform: rotate(360deg); } }
     #reset-btn {
       margin-top: auto; width: 100%;
       padding: 9px; background: #fff;
@@ -292,6 +301,7 @@
         <div id="qr-url"></div>
       </div>
       <div id="badge">단어 0개</div>
+      <div id="refresh-indicator">⟳ 10초마다 자동 갱신</div>
       <button id="reset-btn" onclick="resetSession()">🗑 세션 초기화</button>
     </div>
   </div>
@@ -366,6 +376,9 @@ const CONFIG = {
   );
   ALTER TABLE wordcloud_words DISABLE ROW LEVEL SECURITY;
 
+  -- 실시간 구독 활성화 (Supabase Realtime):
+  ALTER TABLE wordcloud_words REPLICA IDENTITY FULL;
+
   📌 URL 파라미터:
     ?mode=vote          → 모바일 투표 화면  (기본: present)
     ?session=abc123     → 세션 ID           (기본: 'default')
@@ -417,7 +430,7 @@ if (MODE === 'vote') {
 const wordMap = {}; // key: lowercase → { display, count }
 let renderTimer = null;
 
-function initPresentMode() {
+async function initPresentMode() {
   document.getElementById('present-q').textContent = QUESTION;
 
   const voteUrl = buildVoteUrl();
@@ -436,15 +449,10 @@ function initPresentMode() {
 
   if (!sb) return;
 
-  // Load existing words
-  sb.from(CONFIG.table).select('word').eq('session_id', SESSION)
-    .then(({ data, error }) => {
-      if (error) { console.error(error); return; }
-      (data || []).forEach(r => addToMap(r.word));
-      scheduleRender(0);
-    });
+  // 최초 로드
+  await loadWords();
 
-  // Real-time subscription
+  // Real-time subscription (즉시 반영)
   sb.channel('wc_' + SESSION)
     .on('postgres_changes', {
       event: 'INSERT', schema: 'public',
@@ -456,7 +464,30 @@ function initPresentMode() {
     })
     .subscribe();
 
+  // 10초 폴링 (실시간 구독 백업)
+  setInterval(loadWords, 10000);
+
   window.addEventListener('resize', () => scheduleRender(200));
+}
+
+async function loadWords() {
+  if (!sb) return;
+  const ind = document.getElementById('refresh-indicator');
+  if (ind) ind.innerHTML = '<span class="spin">⟳</span> 갱신 중…';
+
+  const { data, error } = await sb
+    .from(CONFIG.table).select('word').eq('session_id', SESSION);
+
+  if (error) { console.error(error); return; }
+
+  // 전체 재구성
+  Object.keys(wordMap).forEach(k => delete wordMap[k]);
+  (data || []).forEach(r => addToMap(r.word));
+  scheduleRender(0);
+
+  // 마지막 갱신 시각 표시
+  const t = new Date().toLocaleTimeString('ko-KR', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+  if (ind) ind.innerHTML = `⟳ 10초 자동갱신<br><span style="color:#bbb">${t} 업데이트</span>`;
 }
 
 function buildVoteUrl() {
