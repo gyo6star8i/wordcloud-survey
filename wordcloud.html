@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>워드클라우드 설문</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@700;900&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/d3-cloud@1.2.7/build/d3.layout.cloud.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body {
+      font-family: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #fff;
+      color: #1a1a1a;
+    }
+
+    /* ===== PRESENT VIEW ===== */
+    #present-view {
+      width: 100vw; height: 100vh;
+      display: flex; flex-direction: column;
+      background: #fff;
+    }
+    #present-header {
+      padding: 24px 28px 8px;
+      display: flex; align-items: flex-start;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+    #present-q {
+      font-size: clamp(18px, 2.2vw, 30px);
+      font-weight: 700; color: #1a1a1a;
+      max-width: 65%; line-height: 1.35;
+    }
+    #present-body {
+      flex: 1; display: flex; overflow: hidden;
+    }
+    #cloud-area {
+      flex: 1; position: relative;
+      display: flex; align-items: center; justify-content: center;
+      overflow: hidden;
+    }
+    #cloud-svg {
+      position: absolute; top: 0; left: 0;
+      width: 100%; height: 100%;
+    }
+    #empty-hint {
+      display: flex; flex-direction: column;
+      align-items: center; gap: 12px;
+      color: #ccc; text-align: center;
+      pointer-events: none; z-index: 1;
+    }
+    #empty-hint .ei { font-size: 52px; }
+    #empty-hint .et { font-size: 18px; font-weight: 600; }
+    #empty-hint .es { font-size: 13px; }
+
+    #sidebar {
+      width: 210px; flex-shrink: 0;
+      display: flex; flex-direction: column;
+      align-items: center; padding: 16px 14px 20px;
+      gap: 12px; border-left: 1px solid #f0f0f0;
+    }
+    #qr-panel {
+      background: #f8f9fa; border-radius: 14px;
+      padding: 14px 12px;
+      display: flex; flex-direction: column;
+      align-items: center; gap: 10px; width: 100%;
+    }
+    #qr-box { width: 148px; height: 148px; }
+    #qr-box img, #qr-box canvas { border-radius: 6px; }
+    #qr-url {
+      font-size: 10px; color: #999;
+      text-align: center; word-break: break-all; line-height: 1.5;
+    }
+    #badge {
+      background: #eef1ff; color: #3949ab;
+      padding: 7px 16px; border-radius: 20px;
+      font-size: 13px; font-weight: 700;
+    }
+    #reset-btn {
+      margin-top: auto; width: 100%;
+      padding: 9px; background: #fff;
+      border: 1.5px solid #ffcdd2; color: #c62828;
+      border-radius: 10px; font-size: 13px;
+      cursor: pointer; font-family: inherit; font-weight: 600;
+      transition: background .2s;
+    }
+    #reset-btn:hover { background: #ffebee; }
+
+    /* ===== VOTE VIEW ===== */
+    #vote-view {
+      max-width: 440px; margin: 0 auto;
+      min-height: 100vh;
+      display: flex; flex-direction: column;
+      padding: 0 20px 36px;
+    }
+    #vote-top {
+      display: flex; align-items: center;
+      justify-content: center;
+      padding: 22px 0 20px; gap: 10px;
+    }
+    .logo-box {
+      width: 30px; height: 30px;
+      background: #1a1a2e; border-radius: 7px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .logo-box svg { width: 18px; height: 18px; }
+    .logo-name { font-size: 22px; font-weight: 800; letter-spacing: -.5px; }
+    #vote-q {
+      font-size: 22px; font-weight: 700;
+      line-height: 1.4; margin-bottom: 26px;
+    }
+    #vote-form { display: flex; flex-direction: column; }
+    .fields { display: flex; flex-direction: column; gap: 12px; margin-bottom: 26px; }
+    .fw { position: relative; }
+    .fi {
+      width: 100%;
+      padding: 16px 50px 16px 18px;
+      border: 2px solid #e8e8e8; border-radius: 14px;
+      font-size: 16px; background: #fff;
+      outline: none; font-family: inherit;
+      transition: border-color .2s, box-shadow .2s;
+      -webkit-appearance: none;
+    }
+    .fi:focus { border-color: #5c6bc0; box-shadow: 0 0 0 3px rgba(92,107,192,.12); }
+    .fi::placeholder { color: #c5c5c5; }
+    .fi.error { border-color: #e53935; animation: shake .3s ease; }
+    .rc {
+      position: absolute; right: 14px; top: 50%;
+      transform: translateY(-50%);
+      font-size: 13px; color: #c5c5c5; pointer-events: none;
+    }
+    .sub-btn {
+      width: 100%; padding: 18px;
+      background: #5c6bc0; color: #fff;
+      border: none; border-radius: 30px;
+      font-size: 18px; font-weight: 700;
+      cursor: pointer; font-family: inherit;
+      transition: background .15s, transform .1s;
+      -webkit-appearance: none;
+    }
+    .sub-btn:hover:not(:disabled) { background: #3f51b5; }
+    .sub-btn:active:not(:disabled) { transform: scale(.98); }
+    .sub-btn:disabled { background: #c5cae9; cursor: not-allowed; }
+    #like-row {
+      display: flex; justify-content: center;
+      margin: 26px 0 14px;
+    }
+    .like-c {
+      width: 64px; height: 64px; border-radius: 50%;
+      border: 2px solid #e8e8e8; background: #fff;
+      cursor: pointer; display: flex; align-items: center;
+      justify-content: center; font-size: 28px;
+      transition: transform .2s, border-color .2s, background .2s;
+      -webkit-appearance: none;
+    }
+    .like-c:hover { transform: scale(1.08); border-color: #5c6bc0; }
+    .like-c.on { border-color: #5c6bc0; background: #ede7f6; }
+
+    /* Success screen */
+    #success-screen {
+      display: none; flex-direction: column;
+      align-items: center; justify-content: center;
+      flex: 1; gap: 18px; text-align: center; padding: 40px 0;
+    }
+    .s-circle {
+      width: 88px; height: 88px;
+      background: #e8f5e9; border-radius: 50%;
+      display: flex; align-items: center;
+      justify-content: center; font-size: 44px;
+    }
+    #success-screen h2 { font-size: 26px; font-weight: 700; color: #2e7d32; }
+    #success-screen p { font-size: 15px; color: #888; line-height: 1.6; }
+    .retry-btn {
+      padding: 14px 36px; background: #fff;
+      color: #5c6bc0; border: 2px solid #5c6bc0;
+      border-radius: 30px; font-size: 16px; font-weight: 700;
+      cursor: pointer; font-family: inherit; margin-top: 8px;
+    }
+    .retry-btn:hover { background: #f3f4fd; }
+    #vote-footer {
+      text-align: center; font-size: 12px; color: #ccc;
+      padding-top: 20px; margin-top: auto;
+    }
+
+    /* Setup banner */
+    #setup-banner {
+      display: none; position: fixed;
+      top: 0; left: 0; right: 0;
+      background: #fff3cd; color: #856404;
+      padding: 12px 20px; font-size: 13px;
+      z-index: 999; text-align: center;
+      border-bottom: 1px solid #ffc107;
+    }
+    #setup-banner code {
+      background: rgba(0,0,0,.08);
+      padding: 2px 6px; border-radius: 3px; font-size: 12px;
+    }
+
+    @keyframes shake {
+      0%,100% { transform: translateX(0); }
+      25%      { transform: translateX(-6px); }
+      75%      { transform: translateX(6px); }
+    }
+  </style>
+</head>
+<body>
+
+<div id="setup-banner">
+  ⚠️ <strong>Supabase 설정 필요:</strong> 파일 상단 <code>CONFIG</code>의 <code>supabaseUrl</code>과 <code>supabaseKey</code>를 입력하세요.
+  데모 모드로 동작 중 (단어가 실제 저장·공유되지 않음)
+</div>
+
+<!-- PRESENT VIEW -->
+<div id="present-view" style="display:none">
+  <div id="present-header">
+    <div id="present-q"></div>
+  </div>
+  <div id="present-body">
+    <div id="cloud-area">
+      <div id="empty-hint">
+        <div class="ei">☁</div>
+        <div class="et">아직 응답이 없습니다</div>
+        <div class="es">QR코드로 참여하면 단어가 여기에 표시됩니다</div>
+      </div>
+      <svg id="cloud-svg"></svg>
+    </div>
+    <div id="sidebar">
+      <div id="qr-panel">
+        <div id="qr-box"></div>
+        <div id="qr-url"></div>
+      </div>
+      <div id="badge">단어 0개</div>
+      <button id="reset-btn" onclick="resetSession()">🗑 세션 초기화</button>
+    </div>
+  </div>
+</div>
+
+<!-- VOTE VIEW -->
+<div id="vote-view" style="display:none">
+  <div id="vote-top">
+    <div class="logo-box">
+      <svg viewBox="0 0 18 18" fill="none">
+        <path d="M2 14V6l7 5 7-5v8" stroke="white" stroke-width="2.2"
+          stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+    <span class="logo-name">WordCloud</span>
+  </div>
+
+  <h2 id="vote-q"></h2>
+
+  <div id="vote-form">
+    <div class="fields">
+      <div class="fw">
+        <input class="fi" id="f1" type="text" placeholder="단어를 입력하세요"
+          maxlength="25" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false">
+        <span class="rc" id="r1">25</span>
+      </div>
+      <div class="fw">
+        <input class="fi" id="f2" type="text" placeholder="다른 단어 입력 (선택)"
+          maxlength="25" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false">
+        <span class="rc" id="r2">25</span>
+      </div>
+      <div class="fw">
+        <input class="fi" id="f3" type="text" placeholder="다른 단어 입력 (선택)"
+          maxlength="25" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false">
+        <span class="rc" id="r3">25</span>
+      </div>
+    </div>
+    <button class="sub-btn" id="sub-btn" onclick="submitWords()">제출</button>
+    <div id="like-row">
+      <button class="like-c" id="like-btn" onclick="toggleLike()">👍</button>
+    </div>
+  </div>
+
+  <div id="success-screen">
+    <div class="s-circle">✓</div>
+    <h2>제출 완료!</h2>
+    <p>소중한 의견 감사합니다.<br>단어클라우드에 반영됩니다.</p>
+    <button class="retry-btn" onclick="resetForm()">다시 입력하기</button>
+  </div>
+
+  <div id="vote-footer">단어클라우드 설문</div>
+</div>
+
+<script>
+// ============================================================
+// ⚙️  CONFIG — Supabase 정보를 여기에 입력하세요
+// ============================================================
+const CONFIG = {
+  supabaseUrl: 'YOUR_SUPABASE_URL',      // 예: https://abcde.supabase.co
+  supabaseKey: 'YOUR_SUPABASE_ANON_KEY', // Supabase 대시보드 → Settings → API
+  table: 'wordcloud_words',
+};
+
+/*
+  📋 Supabase 테이블 생성 SQL (SQL Editor에서 한 번 실행):
+
+  CREATE TABLE wordcloud_words (
+    id           bigserial PRIMARY KEY,
+    word         text NOT NULL,
+    session_id   text NOT NULL DEFAULT 'default',
+    submitted_at timestamptz DEFAULT NOW()
+  );
+  ALTER TABLE wordcloud_words DISABLE ROW LEVEL SECURITY;
+
+  📌 URL 파라미터:
+    ?mode=vote          → 모바일 투표 화면  (기본: present)
+    ?session=abc123     → 세션 ID           (기본: 'default')
+    ?q=내가+사용해+본+AI → 질문 텍스트 (URL 인코딩)
+
+  📌 사용 방법:
+    1. 위 CONFIG에 Supabase 정보 입력
+    2. 이 파일을 웹 서버(GitHub Pages, Vercel 등)에 업로드
+    3. PC에서  https://yoursite.com/wordcloud.html  열기  → 발표자 화면
+    4. 모바일에서 https://yoursite.com/wordcloud.html?mode=vote  접속 → 투표 화면
+       (PC 화면의 QR코드 스캔으로 바로 접속 가능)
+*/
+// ============================================================
+
+const params   = new URLSearchParams(location.search);
+const MODE     = params.get('mode') || 'present';
+const SESSION  = params.get('session') || 'default';
+const QUESTION = decodeURIComponent(params.get('q') || '') || '내가 사용해 본 AI 도구는?';
+
+const COLORS = [
+  '#1565C0','#E53935','#7B1FA2','#00897B',
+  '#F57C00','#AD1457','#0277BD','#558B2F',
+  '#6A1B9A','#C62828','#00695C','#37474F',
+  '#4A148C','#BF360C','#01579B','#33691E',
+];
+
+let sb = null;
+const configured = CONFIG.supabaseUrl !== 'YOUR_SUPABASE_URL';
+if (configured) {
+  sb = supabase.createClient(CONFIG.supabaseUrl, CONFIG.supabaseKey);
+} else {
+  document.getElementById('setup-banner').style.display = 'block';
+}
+
+// Route to mode
+if (MODE === 'vote') {
+  const v = document.getElementById('vote-view');
+  v.style.display = 'flex';
+  v.style.flexDirection = 'column';
+  initVoteMode();
+} else {
+  document.getElementById('present-view').style.display = 'flex';
+  initPresentMode();
+}
+
+// ============================================================
+// PRESENT MODE
+// ============================================================
+const wordMap = {}; // key: lowercase → { display, count }
+let renderTimer = null;
+
+function initPresentMode() {
+  document.getElementById('present-q').textContent = QUESTION;
+
+  const voteUrl = buildVoteUrl();
+  document.getElementById('qr-url').textContent = voteUrl;
+  try {
+    new QRCode(document.getElementById('qr-box'), {
+      text: voteUrl, width: 148, height: 148,
+      colorDark: '#1a1a1a', colorLight: '#ffffff',
+      correctLevel: QRCode.CorrectLevel.M,
+    });
+  } catch(e) {
+    document.getElementById('qr-box').style.cssText =
+      'font-size:10px;color:#666;word-break:break-all;padding:4px';
+    document.getElementById('qr-box').textContent = voteUrl;
+  }
+
+  if (!sb) return;
+
+  // Load existing words
+  sb.from(CONFIG.table).select('word').eq('session_id', SESSION)
+    .then(({ data, error }) => {
+      if (error) { console.error(error); return; }
+      (data || []).forEach(r => addToMap(r.word));
+      scheduleRender(0);
+    });
+
+  // Real-time subscription
+  sb.channel('wc_' + SESSION)
+    .on('postgres_changes', {
+      event: 'INSERT', schema: 'public',
+      table: CONFIG.table,
+      filter: `session_id=eq.${SESSION}`,
+    }, payload => {
+      addToMap(payload.new.word);
+      scheduleRender(80);
+    })
+    .subscribe();
+
+  window.addEventListener('resize', () => scheduleRender(200));
+}
+
+function buildVoteUrl() {
+  const url = new URL(location.href);
+  url.searchParams.set('mode', 'vote');
+  url.searchParams.set('session', SESSION);
+  if (params.get('q')) url.searchParams.set('q', params.get('q'));
+  else url.searchParams.delete('q');
+  return url.toString();
+}
+
+function addToMap(raw) {
+  const key = (raw || '').trim().toLowerCase();
+  if (!key) return;
+  if (wordMap[key]) wordMap[key].count++;
+  else wordMap[key] = { display: raw.trim(), count: 1 };
+}
+
+function scheduleRender(delay = 60) {
+  clearTimeout(renderTimer);
+  renderTimer = setTimeout(renderCloud, delay);
+}
+
+function renderCloud() {
+  const entries = Object.values(wordMap);
+  document.getElementById('badge').textContent = `단어 ${entries.length}개`;
+
+  const area = document.getElementById('cloud-area');
+  const W = area.clientWidth;
+  const H = area.clientHeight;
+
+  if (entries.length === 0) {
+    document.getElementById('empty-hint').style.display = 'flex';
+    d3.select('#cloud-svg').selectAll('*').remove();
+    return;
+  }
+  document.getElementById('empty-hint').style.display = 'none';
+
+  const maxCount = Math.max(...entries.map(e => e.count));
+  const minSize = Math.max(18, W * 0.022);
+  const maxSize = Math.min(W * 0.13, 92);
+
+  const words = entries
+    .sort((a, b) => b.count - a.count)
+    .map(e => ({
+      text: e.display,
+      size: minSize + Math.pow(e.count / maxCount, 0.55) * (maxSize - minSize),
+      color: COLORS[Math.abs(hashStr(e.display.toLowerCase())) % COLORS.length],
+    }));
+
+  d3.layout.cloud()
+    .size([W, H])
+    .words(words)
+    .padding(5)
+    .rotate(() => Math.random() > 0.85 ? 90 : 0)
+    .font("'Noto Sans KR', sans-serif")
+    .fontWeight(700)
+    .fontSize(d => d.size)
+    .on('end', placed => drawCloud(placed, W, H))
+    .start();
+}
+
+function drawCloud(words, W, H) {
+  const svg = d3.select('#cloud-svg').attr('width', W).attr('height', H);
+  svg.selectAll('*').remove();
+
+  svg.append('g')
+    .attr('transform', `translate(${W / 2},${H / 2})`)
+    .selectAll('text')
+    .data(words)
+    .enter().append('text')
+      .style('font-family', "'Noto Sans KR', sans-serif")
+      .style('font-size', d => d.size + 'px')
+      .style('font-weight', '700')
+      .style('fill', d => d.color)
+      .attr('text-anchor', 'middle')
+      .attr('transform', d => `translate(${d.x},${d.y}) rotate(${d.rotate})`)
+      .style('opacity', 0)
+      .text(d => d.text)
+      .transition().duration(500)
+      .style('opacity', 1);
+}
+
+function hashStr(s) {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (Math.imul(31, h) + s.charCodeAt(i)) | 0;
+  return h;
+}
+
+async function resetSession() {
+  if (!sb) { alert('Supabase 설정을 먼저 완료해주세요.'); return; }
+  if (!confirm(`세션 "${SESSION}"의 모든 응답을 삭제하시겠습니까?`)) return;
+  const { error } = await sb.from(CONFIG.table).delete().eq('session_id', SESSION);
+  if (error) { alert('오류: ' + error.message); return; }
+  Object.keys(wordMap).forEach(k => delete wordMap[k]);
+  scheduleRender(0);
+}
+
+// ============================================================
+// VOTE MODE
+// ============================================================
+function initVoteMode() {
+  document.getElementById('vote-q').textContent = QUESTION;
+
+  ['f1','f2','f3'].forEach((id, i) => {
+    const el = document.getElementById(id);
+    const rid = 'r' + (i + 1);
+    el.addEventListener('input', () => {
+      document.getElementById(rid).textContent = el.maxLength - el.value.length;
+      el.classList.remove('error');
+    });
+    el.addEventListener('keydown', e => {
+      if (e.key === 'Enter') document.getElementById('sub-btn').click();
+    });
+  });
+}
+
+async function submitWords() {
+  const words = ['f1','f2','f3']
+    .map(id => document.getElementById(id).value.trim())
+    .filter(w => w.length > 0);
+
+  if (words.length === 0) {
+    const f = document.getElementById('f1');
+    f.classList.add('error');
+    f.focus();
+    setTimeout(() => f.classList.remove('error'), 600);
+    return;
+  }
+
+  const btn = document.getElementById('sub-btn');
+  btn.disabled = true;
+  btn.textContent = '제출 중…';
+
+  if (!sb) {
+    // Demo mode: simulate without Supabase
+    setTimeout(() => showSuccess(), 700);
+    return;
+  }
+
+  try {
+    const { error } = await sb.from(CONFIG.table)
+      .insert(words.map(word => ({ word, session_id: SESSION })));
+    if (error) throw error;
+    showSuccess();
+  } catch(err) {
+    console.error(err);
+    alert('오류가 발생했습니다. 다시 시도해주세요.\n' + (err.message || ''));
+    btn.disabled = false;
+    btn.textContent = '제출';
+  }
+}
+
+function showSuccess() {
+  document.getElementById('vote-form').style.display = 'none';
+  const s = document.getElementById('success-screen');
+  s.style.display = 'flex';
+  s.style.flexDirection = 'column';
+}
+
+function resetForm() {
+  ['f1','f2','f3'].forEach((id, i) => {
+    document.getElementById(id).value = '';
+    document.getElementById('r' + (i + 1)).textContent = '25';
+  });
+  document.getElementById('sub-btn').disabled = false;
+  document.getElementById('sub-btn').textContent = '제출';
+  document.getElementById('vote-form').style.display = 'flex';
+  document.getElementById('vote-form').style.flexDirection = 'column';
+  document.getElementById('success-screen').style.display = 'none';
+}
+
+let likeOn = false;
+function toggleLike() {
+  likeOn = !likeOn;
+  document.getElementById('like-btn').classList.toggle('on', likeOn);
+}
+</script>
+</body>
+</html>
