@@ -454,6 +454,7 @@ const MODE     = params.get('mode') || 'present';
 const SESSION  = params.get('session') || 'default';
 const PLACEHOLDER = '질문을 입력해 주세요.';
 const QUESTION = params.get('q') || '';
+let savedQuestion = QUESTION; // buildVoteUrl()보다 먼저 선언되어야 함
 
 const COLORS = [
   '#1565C0','#E53935','#7B1FA2','#00897B',
@@ -772,7 +773,6 @@ async function saveAsExcel() {
 // ============================================================
 // 질문 수정
 // ============================================================
-let savedQuestion = QUESTION; // 빈 문자열이면 플레이스홀더로 처리
 
 function startEdit() {
   const q   = document.getElementById('present-q');
