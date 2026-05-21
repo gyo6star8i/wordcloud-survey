@@ -472,22 +472,28 @@ async function initPresentMode() {
 
 async function loadWords() {
   if (!sb) return;
-  const ind = document.getElementById('refresh-indicator');
-  if (ind) ind.innerHTML = '<span class="spin">⟳</span> 갱신 중…';
 
   const { data, error } = await sb
     .from(CONFIG.table).select('word').eq('session_id', SESSION);
 
   if (error) { console.error(error); return; }
 
-  // 전체 재구성
-  Object.keys(wordMap).forEach(k => delete wordMap[k]);
-  (data || []).forEach(r => addToMap(r.word));
-  scheduleRender(0);
+  const newTotal = (data || []).length;
+  const oldTotal = Object.values(wordMap).reduce((s, e) => s + e.count, 0);
 
-  // 마지막 갱신 시각 표시
   const t = new Date().toLocaleTimeString('ko-KR', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
-  if (ind) ind.innerHTML = `⟳ 10초 자동갱신<br><span style="color:#bbb">${t} 업데이트</span>`;
+  const ind = document.getElementById('refresh-indicator');
+
+  // 단어 수가 바뀌었을 때만 재렌더링
+  if (newTotal !== oldTotal) {
+    Object.keys(wordMap).forEach(k => delete wordMap[k]);
+    (data || []).forEach(r => addToMap(r.word));
+    scheduleRender(0);
+    if (ind) ind.innerHTML = `⟳ 10초 자동갱신<br><span style="color:#5c6bc0;font-weight:700">${t} 새 단어 반영</span>`;
+  } else {
+    // 변화 없으면 시각만 업데이트 (재렌더링 없음)
+    if (ind) ind.innerHTML = `⟳ 10초 자동갱신<br><span style="color:#bbb">${t} 확인</span>`;
+  }
 }
 
 function buildVoteUrl() {
