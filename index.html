@@ -31,10 +31,31 @@
       justify-content: space-between;
       flex-shrink: 0;
     }
+    #present-q-wrap {
+      display: flex; align-items: center;
+      gap: 10px; max-width: 65%;
+    }
     #present-q {
       font-size: clamp(18px, 2.2vw, 30px);
       font-weight: 700; color: #1a1a1a;
-      max-width: 65%; line-height: 1.35;
+      line-height: 1.35;
+    }
+    #edit-q-btn {
+      flex-shrink: 0;
+      background: none; border: none;
+      font-size: 18px; cursor: pointer;
+      opacity: 0.3; transition: opacity .2s;
+      padding: 4px;
+    }
+    #edit-q-btn:hover { opacity: 1; }
+    #present-q-input {
+      display: none;
+      font-size: clamp(18px, 2.2vw, 30px);
+      font-weight: 700; color: #1a1a1a;
+      border: none; border-bottom: 2.5px solid #5c6bc0;
+      outline: none; background: transparent;
+      font-family: inherit; line-height: 1.35;
+      width: 100%; min-width: 300px;
     }
     #present-body {
       flex: 1; display: flex; overflow: hidden;
@@ -284,7 +305,14 @@
 <!-- PRESENT VIEW -->
 <div id="present-view" style="display:none">
   <div id="present-header">
-    <div id="present-q"></div>
+    <div id="present-q-wrap">
+      <div id="present-q"></div>
+      <input id="present-q-input" type="text" maxlength="60"
+        placeholder="질문을 입력하세요"
+        onblur="saveQuestion()"
+        onkeydown="if(event.key==='Enter')this.blur(); if(event.key==='Escape')cancelEdit();">
+      <button id="edit-q-btn" onclick="startEdit()" title="질문 수정">✏️</button>
+    </div>
   </div>
   <div id="present-body">
     <div id="cloud-area">
@@ -581,6 +609,75 @@ function hashStr(s) {
   let h = 0;
   for (let i = 0; i < s.length; i++) h = (Math.imul(31, h) + s.charCodeAt(i)) | 0;
   return h;
+}
+
+// ============================================================
+// 질문 수정
+// ============================================================
+let savedQuestion = QUESTION;
+
+function startEdit() {
+  const q   = document.getElementById('present-q');
+  const inp = document.getElementById('present-q-input');
+  const btn = document.getElementById('edit-q-btn');
+  inp.value = q.textContent;
+  q.style.display   = 'none';
+  inp.style.display = 'block';
+  btn.textContent   = '✅';
+  btn.onclick       = () => inp.blur();
+  inp.focus();
+  inp.select();
+}
+
+function saveQuestion() {
+  const q   = document.getElementById('present-q');
+  const inp = document.getElementById('present-q-input');
+  const btn = document.getElementById('edit-q-btn');
+  const newQ = inp.value.trim() || savedQuestion;
+
+  savedQuestion = newQ;
+  q.textContent     = newQ;
+  q.style.display   = '';
+  inp.style.display = 'none';
+  btn.textContent   = '✏️';
+  btn.onclick       = startEdit;
+
+  // URL 업데이트 (새로고침 없이)
+  const url = new URL(location.href);
+  url.searchParams.set('q', encodeURIComponent(newQ));
+  history.pushState({}, '', url.toString());
+
+  // QR 코드 재생성
+  regenerateQR(buildVoteUrl());
+}
+
+function cancelEdit() {
+  const q   = document.getElementById('present-q');
+  const inp = document.getElementById('present-q-input');
+  const btn = document.getElementById('edit-q-btn');
+  q.style.display   = '';
+  inp.style.display = 'none';
+  btn.textContent   = '✏️';
+  btn.onclick       = startEdit;
+}
+
+function regenerateQR(url) {
+  // 사이드바 QR 재생성
+  const box = document.getElementById('qr-box');
+  box.innerHTML = '';
+  document.getElementById('qr-url').textContent = url;
+  try {
+    new QRCode(box, {
+      text: url, width: 148, height: 148,
+      colorDark: '#1a1a1a', colorLight: '#ffffff',
+      correctLevel: QRCode.CorrectLevel.M,
+    });
+  } catch(e) { box.textContent = url; }
+
+  // 풀스크린 QR도 초기화 (다음 열 때 새로 생성)
+  qrBigGenerated = false;
+  document.getElementById('qr-big').innerHTML = '';
+  document.getElementById('qr-modal-url').textContent = url;
 }
 
 // ============================================================
